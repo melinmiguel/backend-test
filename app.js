@@ -1,60 +1,26 @@
 const express = require('express');
 const cors = require('cors');
+const dns = require('node:dns');
+
+dns.setDefaultResultOrder('verbatim');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middlewares
 app.use(cors());
 app.use(express.json());
 
-// CONFIGURAÇÃO: Lê a URL do Railway em produção ou usa localhost no desenvolvimento
-const SERVICO_CADASTRO = process.env.URL_CADASTRO || 'http://localhost:3001/api/cadastro';
-const SERVICO_LOGIN = process.env.URL_LOGIN || 'http://localhost:3002/api/login';
+// CONFIGURAÇÃO: URL base dos microsserviços (SEM /api/login no final)
+const SERVICO_LOGIN_BASE = process.env.URL_LOGIN || 'http://localhost:3002';
 
 // ==========================================
-// ROTAS DO GRUPO DE CADASTRO
+// ROTAS DE LOGIN E USUÁRIOS (Repassadas ao back-login)
 // ==========================================
 
-app.post('/api/cadastro', async (req, res) => {
-    try {
-        const resposta = await fetch(SERVICO_CADASTRO, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(req.body)
-        });
-
-        const dados = await resposta.json();
-        res.status(resposta.status).json(dados);
-    } catch (error) {
-        console.error('Erro no serviço de cadastro:', error);
-        res.status(502).json({ erro: 'Serviço de Cadastro indisponível' });
-    }
-});
-
-app.post('/api/cadastro/verificar-documento', async (req, res) => {
-    try {
-        const resposta = await fetch(`${SERVICO_CADASTRO}/verificar-documento`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(req.body)
-        });
-
-        const dados = await resposta.json();
-        res.status(resposta.status).json(dados);
-    } catch (error) {
-        console.error('Erro ao verificar documento:', error);
-        res.status(502).json({ erro: 'Serviço de Cadastro indisponível' });
-    }
-});
-
-// ==========================================
-// ROTAS DO GRUPO DE LOGIN
-// ==========================================
-
+// 1. Login
 app.post('/api/login', async (req, res) => {
     try {
-        const resposta = await fetch(SERVICO_LOGIN, {
+        const resposta = await fetch(`${SERVICO_LOGIN_BASE}/api/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(req.body)
@@ -68,9 +34,10 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
+// 2. Recuperar senha
 app.post('/api/login/recuperar-senha', async (req, res) => {
     try {
-        const resposta = await fetch(`${SERVICO_LOGIN}/recuperar-senha`, {
+        const resposta = await fetch(`${SERVICO_LOGIN_BASE}/api/login/recuperar-senha`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(req.body)
@@ -84,7 +51,41 @@ app.post('/api/login/recuperar-senha', async (req, res) => {
     }
 });
 
+// 3. Cadastrar usuário
+app.post('/api/usuarios', async (req, res) => {
+    try {
+        const resposta = await fetch(`${SERVICO_LOGIN_BASE}/api/usuarios`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(req.body)
+        });
+
+        const dados = await resposta.json();
+        res.status(resposta.status).json(dados);
+    } catch (error) {
+        console.error('Erro ao cadastrar usuário:', error);
+        res.status(502).json({ erro: 'Serviço de Usuários indisponível' });
+    }
+});
+
+// 4. Deletar usuário
+app.delete('/api/usuarios/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const resposta = await fetch(`${SERVICO_LOGIN_BASE}/api/usuarios/${id}`, {
+            method: 'DELETE'
+        });
+
+        const dados = await resposta.json();
+        res.status(resposta.status).json(dados);
+    } catch (error) {
+        console.error('Erro ao deletar usuário:', error);
+        res.status(502).json({ erro: 'Serviço de Usuários indisponível' });
+    }
+});
+
 // Inicialização do Servidor
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`API Gateway rodando na porta ${PORT}`);
+    console.log(`Apontando para o serviço de usuários em: ${SERVICO_LOGIN_BASE}`);
 });
